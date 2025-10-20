@@ -1,0 +1,191 @@
+---
+title: "EDA"
+author: "Group 5"
+date: "2025-03-21"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(corrplot)
+library(ggpubr)
+library(tidyr) 
+```
+
+
+```{r}
+data <- read.csv("flight_data_newfeatures.csv")
+str(data)
+```
+
+# 1. Distribution of Fare
+
+## clean the data
+
+```{r}
+Q1 <- quantile(data$Fare, 0.25, na.rm = TRUE)
+Q3 <- quantile(data$Fare, 0.75, na.rm = TRUE)
+IQR_value <- Q3 - Q1
+
+lower_bound <- Q1 - 1.5 * IQR_value
+upper_bound <- Q3 + 1.5 * IQR_value
+
+data_cleaned <- data %>% filter(Fare >= lower_bound & Fare <= upper_bound)
+
+# data_cleaned <- data %>% filter(Fare <= 100000)
+
+write.csv(data_cleaned, "flight_data_cleaned.csv", row.names = FALSE)
+```
+
+```{r}
+ggplot(data_cleaned, aes(x = Fare)) +
+  geom_histogram(bins = 50, fill = "blue", alpha = 0.6) +
+  theme_minimal() +
+  ggtitle("Distribution of Fare") +
+  xlab("Fare") +
+  ylab("Count")
+```
+
+# 2. Distribution of Numerical Varibles
+```{r}
+# Total_Minutes
+ggplot(data_cleaned, aes(x = Total_Minutes)) +
+  geom_histogram(bins = 30, fill = "blue", alpha = 0.6) +
+  theme_minimal() +
+  ggtitle("Distribution of Total_Minutes")
+
+# distance
+ggplot(data_cleaned, aes(x = distance)) +
+  geom_histogram(bins = 30, fill = "blue", alpha = 0.6) +
+  theme_minimal() +
+  ggtitle("Distribution of distance")
+
+# Low_Cost_Count
+ggplot(data_cleaned, aes(x = Low_Cost_Count)) +
+  geom_histogram(bins = 10, fill = "blue", alpha = 0.6) +
+  theme_minimal() +
+  ggtitle("Distribution of Low_Cost_Count")
+
+# Number.Of.Stops
+ggplot(data_cleaned, aes(x = Number.Of.Stops)) +
+  geom_histogram(bins = 10, fill = "blue", alpha = 0.6) +
+  theme_minimal() +
+  ggtitle("Distribution of Number.Of.Stops")
+
+# IsWeekend
+ggplot(data_cleaned, aes(x = factor(IsWeekend))) +
+  geom_bar(fill = "blue", alpha = 0.6) +
+  theme_minimal() +
+  ggtitle("Distribution of IsWeekend")
+
+# ifHoliday
+ggplot(data_cleaned, aes(x = factor(ifHoliday))) +
+  geom_bar(fill = "blue", alpha = 0.6) +
+  theme_minimal() +
+  ggtitle("Distribution of ifHoliday")
+
+# Is_Low_Cost
+ggplot(data_cleaned, aes(x = factor(Is_Low_Cost))) +
+  geom_bar(fill = "blue", alpha = 0.6) +
+  theme_minimal() +
+  ggtitle("Distribution of Is_Low_Cost")
+
+# Departure.Off.Peak
+ggplot(data_cleaned, aes(x = factor(Departure.Off.Peak))) +
+  geom_bar(fill = "blue", alpha = 0.6) +
+  theme_minimal() +
+  ggtitle("Distribution of Departure.Off.Peak")
+
+# Arrival.Off.Peak
+ggplot(data_cleaned, aes(x = factor(Arrival.Off.Peak))) +
+  geom_bar(fill = "blue", alpha = 0.6) +
+  theme_minimal() +
+  ggtitle("Distribution of Arrival.Off.Peak")
+```
+
+# 2. Heatmap for numerical variables
+```{r}
+corr_matrix <- cor(data_cleaned %>% select(where(is.numeric)), use = "complete.obs")
+corrplot(corr_matrix, method = "color", type = "upper", tl.col = "black", tl.cex = 0.7)
+```
+
+# 3. Categorical variables VS fare
+```{r}
+data_cleaned %>%
+  ggplot(aes(x = as.factor(Number.Of.Stops), y = Fare)) +
+  geom_boxplot(fill = "lightblue") +
+  theme_minimal() +
+  ggtitle("Number of Stops vs Fare")
+```
+
+# 4. Numerical Variables VS Fare
+```{r}
+# Total_Minutes vs Fare
+ggplot(data_cleaned, aes(x = Total_Minutes, y = Fare)) +
+  geom_point(alpha = 0.5, color = "blue") +
+  geom_smooth(method = "lm", col = "red") +
+  scale_y_log10() +  # 票价取log10，避免极端值影响
+  theme_minimal() +
+  ggtitle("Total_Minutes vs Fare (Log Scaled)")
+
+# distance vs Fare
+ggplot(data_cleaned, aes(x = distance, y = Fare)) +
+  geom_point(alpha = 0.5, color = "blue") +
+  geom_smooth(method = "lm", col = "red") +
+  scale_y_log10() +
+  theme_minimal() +
+  ggtitle("distance vs Fare (Log Scaled)")
+
+# Low_Cost_Count vs Fare
+ggplot(data_cleaned, aes(x = Low_Cost_Count, y = Fare)) +
+  geom_point(alpha = 0.5, color = "blue") +
+  geom_smooth(method = "lm", col = "red") +
+  scale_y_log10() +
+  theme_minimal() +
+  ggtitle("Low_Cost_Count vs Fare (Log Scaled)")
+```
+
+# 5. Categorical Variables (Violin Plots)
+```{r}
+# IsWeekend vs Fare
+ggplot(data_cleaned, aes(x = factor(IsWeekend), y = Fare, fill = factor(IsWeekend))) +
+  geom_violin(alpha = 0.5) +
+  geom_boxplot(width = 0.1, outlier.shape = NA) +
+  scale_y_log10() + 
+  theme_minimal() +
+  ggtitle("IsWeekend vs Fare (Log Scaled)")
+
+# ifHoliday vs Fare
+ggplot(data_cleaned, aes(x = factor(ifHoliday), y = Fare, fill = factor(ifHoliday))) +
+  geom_violin(alpha = 0.5) +
+  geom_boxplot(width = 0.1, outlier.shape = NA) +
+  scale_y_log10() +
+  theme_minimal() +
+  ggtitle("ifHoliday vs Fare (Log Scaled)")
+
+# Is_Low_Cost vs Fare
+ggplot(data_cleaned, aes(x = factor(Is_Low_Cost), y = Fare, fill = factor(Is_Low_Cost))) +
+  geom_violin(alpha = 0.5) +
+  geom_boxplot(width = 0.1, outlier.shape = NA) +
+  scale_y_log10() +
+  theme_minimal() +
+  ggtitle("Is_Low_Cost vs Fare (Log Scaled)")
+
+# Departure.Off.Peak vs Fare
+ggplot(data_cleaned, aes(x = factor(Departure.Off.Peak), y = Fare, fill = factor(Departure.Off.Peak))) +
+  geom_violin(alpha = 0.5) +
+  geom_boxplot(width = 0.1, outlier.shape = NA) +
+  scale_y_log10() +
+  theme_minimal() +
+  ggtitle("Departure.Off.Peak vs Fare (Log Scaled)")
+
+# Arrival.Off.Peak vs Fare
+ggplot(data_cleaned, aes(x = factor(Arrival.Off.Peak), y = Fare, fill = factor(Arrival.Off.Peak))) +
+  geom_violin(alpha = 0.5) +
+  geom_boxplot(width = 0.1, outlier.shape = NA) +
+  scale_y_log10() +
+  theme_minimal() +
+  ggtitle("Arrival.Off.Peak vs Fare (Log Scaled)")
+```
+

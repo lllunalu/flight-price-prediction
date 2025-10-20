@@ -1,0 +1,158 @@
+---
+title: "Create new features"
+author: "Group 5"
+date: "2025-03-20"
+output: html_document
+---
+
+```{r}
+library(brms) 
+library(readr)
+library(dplyr)
+
+```
+
+```{r}
+flight_data <- read_csv("flight_data.csv")
+
+#drop useless columns
+flight_data <- flight_data %>%
+  select(-`Crawl Timestamp`)
+
+#index data
+flight_data <- flight_data %>%
+  mutate(`Uniq Id` = row_number())
+
+print(head(flight_data))
+```
+
+# 1. Flights duration time
+```{r}
+convert_to_minutes <- function(time_string) {
+  # Use regex to extract hours and minutes
+  hours <- as.numeric(sub("\\s*h.*", "", time_string)) 
+  minutes <- as.numeric(sub(".*h\\s*", "", sub("\\s*m", "", time_string))) 
+  total_minutes <- hours * 60 + minutes
+  return(total_minutes)
+}
+
+
+flight_data <- flight_data %>%
+  mutate(Total_Minutes = sapply(`Total Time`, convert_to_minutes))
+
+print(head(flight_data))
+```
+
+# 2. Source & Destination Coordinate
+```{r}
+library(tidygeocoder)
+
+flight_data <- flight_data %>%
+  geocode(address = Source, method = "osm")
+
+flight_data <- flight_data %>%
+  rename(Source_lat = lat)
+
+flight_data <- flight_data %>%
+  rename(Source_long = long)
+
+flight_data <- flight_data %>%
+  geocode(address = Destination, method = "osm")
+
+flight_data <- flight_data %>%
+  rename(Dest_lat = lat)
+
+flight_data <- flight_data %>%
+  rename(Dest_long = long)
+```
+# 3. Source & Destination Distance(km)
+```{r}
+library(geosphere)
+
+flight_data <- flight_data %>%
+  mutate(distance = distHaversine(
+    cbind(Source_long, Source_lat),  
+    cbind(Dest_long, Dest_lat)       
+  ))
+flight_data <- flight_data %>%
+  mutate(distance = distance / 1000) #unit in km 
+
+```
+
+
+# 4. Weekend Departure flights identify
+```{r}
+flight_data$DepartureDate <- as.Date(flight_data$`Departure Date`, format = "%d%b%y")
+flight_data$ArrivalDate <- as.Date(flight_data$`Arrival Date`, format = "%d%b%y")
+
+flight_data$IsWeekend <- as.numeric(weekdays(flight_data$DepartureDate) %in% c("Friday", "Saturday", "Sunday"))
+
+```
+
+# 5. Holiday flights identify
+```{r}
+holidays <- as.Date(c("2020-01-01", "2020-01-15", "2020-01-26", "2020-02-21"))
+flight_data <- flight_data %>%
+  mutate(ifHoliday = ifelse(ArrivalDate %in% holidays, 1, 0))
+```
+
+# 6. Cheap or Luxury airlines identify
+```{r}
+library(tidyverse)
+library(lubridate)
+library(hms)
+
+flight_data <- flight_data %>%
+  separate('Flight Operator', into = c("Operator1", "Operator2", "Operator3"), sep = "\\|", remove = FALSE, extra = "merge", fill = "right")
+
+# Define the vector of low-cost airlines
+low_cost_airlines <- c('AirAsia', 'Air Connect', 'Air India Express', 'AirArabia', 'Eurowings', 'FlyDubai', 
+                       'Flybe', 'GoAir', 'Hahn Air', 'Indigo', 'Jazeera Airways', 'Jeju Air', 'Jetstar Airways', 
+                       'Jetstar Asia', 'Jetstar Pacific', 'National Air Services', 'Onur Air', 'Pegasus Airlines', 
+                       'S7 Airlines', 'Scoot', 'SpiceJet', 'Thai Lion Air', 'Thai Smile', 'Trujet', 'WestJet Airlines')
+
+
+flight_data <- flight_data %>%
+  rowwise() %>%
+  mutate(
+    Is_Low_Cost = as.integer(any(c(Operator1, Operator2, Operator3) %in% low_cost_airlines)),  
+    # 1 if any operator is low-cost, 0 otherwise
+    Low_Cost_Count = sum(c(Operator1, Operator2, Operator3) %in% low_cost_airlines)  
+    # count of low-cost operators in the row
+  )
+
+```
+
+# 7. Off peak hour arrival/departure
+```{r}
+flight_data$'Departure Time' <- hms::as_hms(flight_data$'Departure Time')
+flight_data$'Arrival Time' <- hms::as_hms(flight_data$'Arrival Time')
+flight_data <- flight_data %>%
+  mutate(
+    `Departure Off Peak` = ifelse(hour(`Departure Time`) < 8 | hour(`Departure Time`) > 21, 1, 0),
+    `Arrival Off Peak` = ifelse(hour(`Arrival Time`) < 8 | hour(`Arrival Time`) > 21, 1, 0)
+  )
+```
+
+```{r}
+flight_data <- flight_data %>%
+  select(-`Source_lat`)
+flight_data <- flight_data %>%
+  select(-`Source_long`)
+flight_data <- flight_data %>%
+  select(-`Dest_lat`)
+flight_data <- flight_data %>%
+  select(-`Dest_long`)
+flight_data <- flight_data %>%
+  select(-`Departure Date`)
+```
+
+
+```{r}
+print(flight_data)
+```
+
+```{r}
+write.csv(flight_data, "flight_data_newfeatures.csv", row.names = FALSE)
+```
+

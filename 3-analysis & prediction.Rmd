@@ -1,0 +1,723 @@
+---
+title: "flight_model"
+author: "Group 5"
+output: html_document
+date: "2025-03-23"
+---
+
+```{r}
+# load necessary libraries
+library(tidyverse)
+library(brms)  # bayesian regression
+library(ggplot2)
+library(scales)
+library(caret)
+library(tidyverse)
+```
+
+```{r}
+# read data
+flight_data <- read.csv("flight_data_cleaned.csv")
+# delete rows containing NA in the x variables
+flight_data <- flight_data %>%
+  drop_na(Fare, Number.Of.Stops, Total_Minutes, distance,
+          IsWeekend, ifHoliday, Is_Low_Cost, Low_Cost_Count,
+          Departure.Off.Peak, Arrival.Off.Peak)
+
+mean_fare = mean(flight_data$Fare)
+sd_fare = sd(flight_data$Fare)
+cat(mean_fare,"\n")
+cat(sd_fare,"\n")
+```
+
+
+# 1. Basic models
+
+## 1.1 linear regression
+
+```{r}
+# basic linear regression model
+lm_basic <- lm(Fare ~ Number.Of.Stops + Total_Minutes + distance + 
+               IsWeekend + ifHoliday + Is_Low_Cost + Low_Cost_Count + 
+               Departure.Off.Peak + Arrival.Off.Peak,
+               data = flight_data)
+
+# summary
+summary(lm_basic)
+```
+
+## 1.2  bayesian regression
+
+```{r}
+# basic bayesian regression model
+bayes_model <- brm(
+  Fare ~ Number.Of.Stops + Total_Minutes + distance + 
+  IsWeekend + ifHoliday + Is_Low_Cost + Low_Cost_Count + 
+  Departure.Off.Peak + Arrival.Off.Peak,
+  data = flight_data,
+  family = gaussian(),
+  chains = 4,
+  iter = 2000
+)
+```
+
+```{r}
+# summary of bayesian regression model and bayesian R squared
+summary(bayes_model)
+bayes_R2(bayes_model)
+```
+
+
+# 2. Models with interaction terms
+
+## 2.1 weekend and holiday
+
+```{r}
+# linear regression model with interaction term 1
+lm_interaction1 <- lm(Fare ~ Number.Of.Stops + Total_Minutes + distance + 
+                    IsWeekend + ifHoliday + Is_Low_Cost + Low_Cost_Count + 
+                    Departure.Off.Peak + Arrival.Off.Peak+
+                    IsWeekend:ifHoliday, # weekend and holiday
+                    data = flight_data)
+
+# compare model with interaction1 with basic model
+anova(lm_basic, lm_interaction1)
+```
+
+## 2.2 low-cost operators and distance
+
+```{r}
+# linear regression model with interaction term 2
+lm_interaction2 <- lm(Fare ~ Number.Of.Stops + Total_Minutes + distance + 
+                    IsWeekend + ifHoliday + Is_Low_Cost + Low_Cost_Count + 
+                    Departure.Off.Peak + Arrival.Off.Peak+
+                    Is_Low_Cost:distance,  # Differences in pricing strategies of low-cost operators across various distances
+                    data = flight_data)
+
+# compare model with interaction2 with basic model
+anova(lm_basic, lm_interaction2)
+
+# Visualize the pricing differences of low-cost operators across various distances
+ggplot(flight_data, aes(x = distance, y = Fare, color = factor(Is_Low_Cost))) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm") +
+  theme_minimal() +
+  labs(title = "The distance-Fare relationship of Low-cost operators vs. regular operators",
+       color = "whether low-cost operator or not(0=no, 1=yes)")
+```
+
+## 2.3 Number.Of.Stops and Total_Minutes
+
+```{r}
+# linear regression model with interaction term 3
+lm_interaction3 <- lm(Fare ~ Number.Of.Stops + Total_Minutes + distance + 
+                    IsWeekend + ifHoliday + Is_Low_Cost + Low_Cost_Count + 
+                    Departure.Off.Peak + Arrival.Off.Peak+
+                    Total_Minutes:Number.Of.Stops,  # an increase in the Number.Of.Stops on Total_Minutes affect Fare
+                    data = flight_data)
+
+# compare model with interaction3 with basic model
+anova(lm_basic, lm_interaction3)
+
+# Analyze the impact of Total_Minutes on Fare under different Number.Of.Stops
+ggplot(flight_data, aes(x = Total_Minutes, y = Fare, color = factor(Number.Of.Stops))) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(method = "lm") +
+  theme_minimal() +
+  labs(title = "Total_Minutes-Fare relationship under different Number.Of.Stops",
+       color = "Number.Of.Stops")
+```
+
+## 2.4 Departure.Off.Peak and Arrival.Off.Peak
+
+```{r}
+# linear regression model with interaction term 4
+lm_interaction4 <- lm(Fare ~ Number.Of.Stops + Total_Minutes + distance + 
+                    IsWeekend + ifHoliday + Is_Low_Cost + Low_Cost_Count + 
+                    Departure.Off.Peak + Arrival.Off.Peak+
+                    Departure.Off.Peak:Arrival.Off.Peak,  # The combined effect of whether departure and arrival times are during peak hours
+                    data = flight_data)
+
+# compare model with interaction4 with basic model
+anova(lm_basic, lm_interaction4)
+
+```
+
+## 2.5 Total_Minutes and ifHoliday
+
+```{r}
+# linear regression model with interaction term 5
+lm_interaction5 <- lm(Fare ~ Number.Of.Stops + Total_Minutes + distance + 
+                    IsWeekend + ifHoliday + Is_Low_Cost + Low_Cost_Count + 
+                    Departure.Off.Peak + Arrival.Off.Peak+
+                    Total_Minutes:ifHoliday,  # Whether IfHoliday plays as moderator between totalMinutes and Fare
+                    data = flight_data)
+
+# compare model with interaction5 with basic model
+anova(lm_basic, lm_interaction5)
+```
+
+## 2.6 Total_Minutes and IsWeekend
+
+```{r}
+# linear regression model with interaction term 6
+lm_interaction6 <- lm(Fare ~ Number.Of.Stops + Total_Minutes + distance + 
+                    IsWeekend + ifHoliday + Is_Low_Cost + Low_Cost_Count + 
+                    Departure.Off.Peak + Arrival.Off.Peak+
+                    Total_Minutes:IsWeekend, # Whether IsWeekend plays as moderator totalMinutes and Fare
+                    data = flight_data)
+
+# compare model with interaction6 with basic model
+anova(lm_basic, lm_interaction6)
+```
+
+## 2.7 Departure.Off.Peak and Number.Of.Stops
+
+```{r}
+# linear regression model with interaction term 7
+lm_interaction7 <- lm(Fare ~ Number.Of.Stops + Total_Minutes + distance + 
+                    IsWeekend + ifHoliday + Is_Low_Cost + Low_Cost_Count + 
+                    Departure.Off.Peak + Arrival.Off.Peak+
+                    Departure.Off.Peak:Number.Of.Stops,  # passengers may tolerate more stops duting day flights compared to night flights 
+                    data = flight_data)
+
+# compare model with interaction7 with basic model
+anova(lm_basic, lm_interaction7)
+```
+
+## 2.8 ANOVA comparison table
+
+```{r}
+library(gridExtra)
+library(grid)
+
+# Define model names
+model_names <- c("IsWeekend:ifHoliday", "Is_Low_Cost:distance", "Total_Minutes:Number.Of.Stops", 
+                 "Departure.Off.Peak:Arrival.Off.Peak", "Total_Minutes:ifHoliday", "Total_Minutes:IsWeekend", 
+                 "Departure.Off.Peak:Number.Of.Stops")
+
+# Assume anova_list contains 7 ANOVA results
+anova_list <- list(c("0.05712 .", 806583409), c("2.2e-16 ***", "7.3568e+10"), 
+                   c("2.2e-16 ***", "1.7716e+10"), c("0.01037 *", 1464187478), 
+                   c("0.1761", 407926201), c("0.2946", 244793203), c("0.4301", 138755764))
+
+# Extract Sum of Squares and P-value, then create a data frame
+anova_summary <- data.frame(
+  Model = model_names,
+  P_value = sapply(anova_list, function(x) x[1]),
+  Sum_of_Sq = sapply(anova_list, function(x) x[2])
+)
+
+# Create the table
+table_grob <- tableGrob(anova_summary, rows = NULL)
+
+# Set header background color
+header_bg <- gpar(fill = "#d6d6d6", col = "black", fontsize = 13, fontface = "bold")
+for (i in seq_len(ncol(table_grob))) {
+  table_grob$grobs[[i]]$gp <- header_bg
+}
+
+# Adjust font size
+for (i in seq_along(table_grob$grobs)) {
+  table_grob$grobs[[i]]$gp <- gpar(fontsize = 12)
+}
+
+# Save high-resolution image
+png("anova_table_academic.png", width = 12, height = 4, units = "in", res = 400)
+grid.draw(table_grob)
+dev.off()
+
+# Display the table
+grid.draw(table_grob)
+```
+
+## 2.9 comprehensive model with effective interaction terms
+
+### 2.9.1 linear regression
+
+```{r}
+# construct a comprehensive linear regression model including important interaction terms
+lm_important_interactions <- lm(Fare ~ Number.Of.Stops + Total_Minutes + distance + 
+                    IsWeekend + ifHoliday + Is_Low_Cost + Low_Cost_Count + 
+                    Departure.Off.Peak + Arrival.Off.Peak +
+                    Is_Low_Cost:distance +  # interaction2
+                    Total_Minutes:Number.Of.Stops +  # interaction3
+                    Departure.Off.Peak:Arrival.Off.Peak,  # interaction4
+                    data = flight_data)
+
+# summary
+summary(lm_important_interactions)
+```
+
+### 2.9.2 bayesian regression
+
+```{r}
+# construct a comprehensive bayesian regression model including important interaction terms
+bayes_important_interactions <- brm(
+  Fare ~ Number.Of.Stops + Total_Minutes + distance + 
+  IsWeekend + ifHoliday + Is_Low_Cost + Low_Cost_Count + 
+  Departure.Off.Peak + Arrival.Off.Peak +
+  Is_Low_Cost:distance +
+  Total_Minutes:Number.Of.Stops +
+  Departure.Off.Peak:Arrival.Off.Peak,
+  data = flight_data,
+  family = gaussian(),
+  chains = 4,
+  iter = 2000
+)
+
+# summary and bayesian R squared
+summary(bayes_important_interactions)
+bayes_R2(bayes_important_interactions)
+```
+
+
+# 3. Cross validation & model improvement
+
+## 3.1 10-fold cv with un-scaled data
+
+```{r}
+# reproducibility
+set.seed(123)
+
+# define the model formula
+model_formula <- Fare ~ Number.Of.Stops + Total_Minutes + distance + 
+                IsWeekend + ifHoliday + Is_Low_Cost + Low_Cost_Count + 
+                Departure.Off.Peak + Arrival.Off.Peak +
+                Is_Low_Cost:distance +
+                Total_Minutes:Number.Of.Stops +
+                Departure.Off.Peak:Arrival.Off.Peak
+
+# define 10 fold cv
+train_control <- trainControl(
+  method = "cv",
+  number = 10,  # 10-fold CV
+  verboseIter = TRUE
+)
+# cv
+cv_model <- train(
+  model_formula,
+  data = flight_data,
+  method = "lm",
+  trControl = train_control
+)
+
+# print the result
+print(cv_model)
+
+# get more detailed prediction metrics
+print(cv_model$results)
+
+# visualize the prediction results
+# use the final model to predict 
+predictions <- predict(cv_model, flight_data)
+
+# scatter plot of prediction values vs. actual values
+ggplot(data.frame(predicted = predictions, actual = flight_data$Fare), 
+       aes(x = actual, y = predicted)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+  theme_minimal() +
+  labs(
+    title = "prediction values vs actual values",
+    x = "actual fare",
+    y = "prediction fare"
+  )
+cv_metrics <- cv_model$resample
+print(cv_metrics)
+
+# calculate Mean_RMSE/SD_RMSE/Mean_Rsquared/SD_RSquared
+summary_metrics <- data.frame(
+  Mean_RMSE = mean(cv_metrics$RMSE),
+  SD_RMSE = sd(cv_metrics$RMSE),
+  Mean_Rsquared = mean(cv_metrics$Rsquared),
+  SD_Rsquared = sd(cv_metrics$Rsquared)
+)
+print(summary_metrics)
+```
+
+## 3.2 10-fold cv with scaled data
+
+Why scale?
+
+To make our RMSE range between 0-1 to evaluate the model more straightforward
+
+### 3.2.1 Linear Model Cross Validation
+
+```{r}
+# check the satistic values of "Fare"
+mean_fare = mean(flight_data$Fare)
+sd_fare = sd(flight_data$Fare)
+cat("Fare's mean：", mean_fare, "\n")
+cat("Fare's standard deviation：", sd_fare, "\n")
+
+# create data after scaling
+flight_data_scaled <- flight_data %>%
+  mutate(Fare_scaled = scale(Fare))
+
+# use scaled data for cv
+set.seed(123)
+
+train_control <- trainControl(
+  method = "cv",
+  number = 10,
+  verboseIter = TRUE
+)
+
+# use scaled data to create model
+cv_model_scaled <- train(
+  Fare_scaled ~ Number.Of.Stops + Total_Minutes + distance + 
+        IsWeekend + ifHoliday + Is_Low_Cost + Low_Cost_Count + 
+        Departure.Off.Peak + Arrival.Off.Peak +
+        Is_Low_Cost:distance +
+        Total_Minutes:Number.Of.Stops +
+        Departure.Off.Peak:Arrival.Off.Peak,
+  data = flight_data_scaled,
+  method = "lm",
+  trControl = train_control
+)
+
+print(cv_model_scaled)
+
+# visualize prediction results
+predictions_scaled <- predict(cv_model_scaled, flight_data_scaled)
+
+ggplot(data.frame(predicted = predictions_scaled, 
+                  actual = flight_data_scaled$Fare_scaled), 
+       aes(x = actual, y = predicted)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+  theme_minimal() +
+  labs(
+    title = "predictive fare VS actual fare after scaling",
+    x = "actual fare - scaled",
+    y = "predictive fare - scaled"
+  )
+```
+
+### 3.2.2 Bayesian Model Cross Validation
+
+```{r}
+# Bayesian Model Cross Validation
+# Set random seed
+set.seed(123)
+
+# Create 10-fold indices
+folds <- createFolds(flight_data_scaled$Fare_scaled, k = 10, list = TRUE)
+
+# Store prediction results for each fold
+cv_results_bayes <- list()
+rmse_values <- numeric(10)
+r2_values <- numeric(10)
+
+# Perform cross validation for each fold
+for(i in 1:10) {
+  # Split training and test sets
+  test_indices <- folds[[i]]
+  train_data <- flight_data_scaled[-test_indices, ]
+  test_data <- flight_data_scaled[test_indices, ]
+  
+  # Train Bayesian model
+  bayes_cv_model <- brm(
+    Fare_scaled ~ Number.Of.Stops + Total_Minutes + distance + 
+    IsWeekend + ifHoliday + Is_Low_Cost + Low_Cost_Count + 
+    Departure.Off.Peak + Arrival.Off.Peak +
+    Is_Low_Cost:distance +
+    Total_Minutes:Number.Of.Stops +
+    Departure.Off.Peak:Arrival.Off.Peak,
+    data = train_data,
+    family = gaussian(),
+    chains = 4,
+    iter = 2000,
+    cores = 4,
+    silent = 2
+  )
+  
+  # Predict test set
+  predictions <- predict(bayes_cv_model, newdata = test_data)
+  
+  # Calculate RMSE
+  rmse_values[i] <- sqrt(mean((predictions[,"Estimate"] - test_data$Fare_scaled)^2))
+  
+  # Calculate R²
+  r2_values[i] <- bayes_R2(bayes_cv_model)[,"Estimate"]
+}
+
+# Calculate average metrics
+bayes_cv_metrics <- data.frame(
+  Mean_RMSE = mean(rmse_values),
+  SD_RMSE = sd(rmse_values),
+  Mean_Rsquared = mean(r2_values),
+  SD_Rsquared = sd(r2_values)
+)
+
+# Print results
+print("Bayesian Model Cross Validation Results:")
+print(bayes_cv_metrics)
+```
+
+```{r}
+# Compare Bayesian CV results with previous results
+cv_comparison <- data.frame(
+  Model = c("Linear Model CV", "Bayesian Model CV"),
+  RMSE = c(mean(cv_model_scaled$resample$RMSE), bayes_cv_metrics$Mean_RMSE),
+  Rsquared = c(mean(cv_model_scaled$resample$Rsquared), bayes_cv_metrics$Mean_Rsquared)
+)
+
+print("Model Comparison:")
+print(cv_comparison)
+```
+
+```{rx}
+# Visualize comparison
+boxplot(
+  list(
+    "Linear Model" = cv_model_scaled$resample$RMSE,
+    "Bayesian Model" = rmse_values
+  ),
+  main = "RMSE Comparison",
+  ylab = "RMSE"
+)
+```
+
+### 3.2.3 lm VS bayesian comparison table
+```{r}
+library(gridExtra)
+library(grid)
+
+row_labels <- c(expression(beta[1]), expression(beta[2]), expression(beta[3]),
+                expression(beta[4]), expression(beta[5]), expression(beta[6]),
+                expression(beta[7]), expression(beta[8]), expression(beta[9]),
+                expression(gamma[1]), expression(gamma[2]), expression(gamma[3]),
+                expression(beta[0]), "CV R²")
+
+col_labels <- c("Linear Regression Model", "Bayesian Regression Model")
+
+data <- matrix(c(
+  "5.511e+03", "5511.41",
+  "1.122e+01", "11.22",
+  "3.589e+00", "3.59",
+  "1.356e+03", "1359.77",
+  "-1.622e+03", "-1630.33",
+  "6.657e+03", "6652.42",
+  "-5.092e+03", "-5091.12",
+  "1.241e+03", "1242.18",
+  "3.637e+03", "3637.24",
+  "-2.049e+00", "-2.05",
+  "-3.642e+00", "-3.64",
+  "-1.477e+03", "-1482.39",
+  "-2.200e+02", "-220.30",
+  "0.4705238", "0.4709003"
+), ncol = 2, byrow = TRUE)
+
+df <- as.data.frame(data, stringsAsFactors = FALSE)
+colnames(df) <- col_labels
+rownames(df) <- sapply(row_labels, function(x) as.expression(x))
+
+png("academic_table_truth.png", width = 1000, height = 700, res = 150)
+grid.table(df, rows = row_labels, theme = ttheme_default(
+  core = list(fg_params = list(cex = 1.0)),
+  colhead = list(fg_params = list(fontface = "bold", cex = 1.1)),
+  rowhead = list(fg_params = list(fontface = "bold", cex = 1.1))
+))
+dev.off()
+```
+
+## 3.3 model improvement
+
+Why improve?
+
+The RMSE is kind of big, meaning that our model cannot explain the variation very well.
+
+```{r}
+# set seed and cv parameters
+set.seed(123)
+train_control <- trainControl(
+  method = "cv",
+  number = 10,
+  verboseIter = TRUE
+)
+```
+
+### 3.3.1 add non linear terms
+
+```{r}
+# solution 1: add non linear terms
+model_nonlinear <- train(
+  Fare_scaled ~ Number.Of.Stops + Total_Minutes + I(Total_Minutes^2) + 
+        distance + I(distance^2) +  # add squared terms
+        IsWeekend + ifHoliday + Is_Low_Cost + Low_Cost_Count + 
+        Departure.Off.Peak + Arrival.Off.Peak +
+        Is_Low_Cost:distance +
+        Total_Minutes:Number.Of.Stops +
+        Departure.Off.Peak:Arrival.Off.Peak,
+  data = flight_data_scaled,
+  method = "lm",
+  trControl = train_control
+)
+
+print("Results of non-linear model: ")
+print(model_nonlinear$results)
+```
+
+### 3.3.2 Random Forest
+
+```{r}
+# Solution 2: Random Forest
+library(randomForest)
+model_rf <- train(
+  Fare_scaled ~ Number.Of.Stops + Total_Minutes + distance + 
+        IsWeekend + ifHoliday + Is_Low_Cost + Low_Cost_Count + 
+        Departure.Off.Peak + Arrival.Off.Peak,
+  data = flight_data_scaled,
+  method = "rf",
+  trControl = train_control,
+  ntree = 500,
+  importance = TRUE
+)
+
+print("Results of random forest: ")
+print(model_rf$results)
+
+# check feature importance
+importance_rf <- varImp(model_rf)
+print("feature importance")
+print(importance_rf)
+```
+
+### 3.3.3 Feature Engineering
+
+```{r}
+# Solution 3: Feature Engineering
+flight_data_engineered <- flight_data_scaled %>%
+  mutate(
+    # create new features
+    peak_hours = ifelse(Departure.Off.Peak == 0 | Arrival.Off.Peak == 0, 1, 0),
+    distance_per_minute = distance/Total_Minutes,
+    total_cost_factor = Is_Low_Cost * Low_Cost_Count,
+    weekend_holiday = IsWeekend * ifHoliday,
+    stops_per_distance = Number.Of.Stops/distance
+  )
+
+model_engineered <- train(
+  Fare_scaled ~ Number.Of.Stops + Total_Minutes + distance + 
+        IsWeekend + ifHoliday + Is_Low_Cost + Low_Cost_Count + 
+        Departure.Off.Peak + Arrival.Off.Peak +
+        peak_hours + distance_per_minute + total_cost_factor + 
+        weekend_holiday + stops_per_distance,
+  data = flight_data_engineered,
+  method = "lm",
+  trControl = train_control
+)
+
+print("Results of feature engineering: ")
+print(model_engineered$results)
+```
+
+### 3.3.4 Hierarchical Bayesian Model
+
+```{r}
+# Solution 4：Hierarchical Bayesian Model
+
+# create hierarchical Bayesian Model
+bayes_model <- brm(
+  Fare_scaled ~ Number.Of.Stops + Total_Minutes + distance + 
+  IsWeekend + ifHoliday + Is_Low_Cost + Low_Cost_Count + 
+  Departure.Off.Peak + Arrival.Off.Peak +
+  Is_Low_Cost:distance +
+  Total_Minutes:Number.Of.Stops +
+  Departure.Off.Peak:Arrival.Off.Peak +
+  # Modify the hierarchical structure to retain only one random effect
+  (distance | Is_Low_Cost),  # Allow different distance effects for different airline types
+  data = flight_data_scaled,
+  family = gaussian(),
+  chains = 4,
+  iter = 2000,
+  cores = 4
+)
+
+summary(bayes_model)
+
+predictions_bayes <- predict(bayes_model, flight_data_scaled)[,"Estimate"]
+
+# Calculate Bayes R2
+bayes_r2 <- bayes_R2(bayes_model)
+print("bayes R²: ")
+print(bayes_r2)
+```
+
+
+### 3.3.5 Compare four solutions
+
+```{r}
+# compare the performance of three models
+results_comparison <- data.frame(
+  Model = c("non-linear model", "random forest", "feature engineering","hierarchical bayesian model"),
+  RMSE = c(
+    min(model_nonlinear$results$RMSE),
+    min(model_rf$results$RMSE),
+    min(model_engineered$results$RMSE),
+    sqrt(mean((predictions_bayes - flight_data_scaled$Fare_scaled)^2))
+  ),
+  Rsquared = c(
+    max(model_nonlinear$results$Rsquared),
+    max(model_rf$results$Rsquared),
+    max(model_engineered$results$Rsquared),
+    mean(bayes_r2[,1])
+  )
+)
+
+print("model comparison: ")
+print(results_comparison)
+```
+
+
+```{r}
+# compare by visualization
+
+# create prediction values for each model
+predictions_nonlinear <- predict(model_nonlinear, flight_data_scaled)
+predictions_rf <- predict(model_rf, flight_data_scaled)
+predictions_engineered <- predict(model_engineered, flight_data_engineered)
+predictions_bayes <- predict(bayes_model, flight_data_scaled)[,"Estimate"]
+
+# create comparison plots of prediction values
+library(ggplot2)
+library(gridExtra)
+
+p1 <- ggplot(data.frame(actual = flight_data_scaled$Fare_scaled, 
+                        predicted = predictions_nonlinear), 
+             aes(x = actual, y = predicted)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+  theme_minimal() +
+  labs(title = "performance of non-linear model")
+
+p2 <- ggplot(data.frame(actual = flight_data_scaled$Fare_scaled, 
+                        predicted = predictions_rf), 
+             aes(x = actual, y = predicted)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+  theme_minimal() +
+  labs(title = "performance of random forest")
+
+p3 <- ggplot(data.frame(actual = flight_data_scaled$Fare_scaled, 
+                        predicted = predictions_engineered), 
+             aes(x = actual, y = predicted)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+  theme_minimal() +
+  labs(title = "performance of feature engineering")
+
+p4 <- ggplot(data.frame(actual = flight_data_scaled$Fare_scaled, 
+                        predicted = predictions_bayes), 
+             aes(x = actual, y = predicted)) +
+  geom_point(alpha = 0.5) +
+  geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
+  theme_minimal() +
+  labs(title = "Hierarchical Bayesian model prediction performance")
+
+grid.arrange(p1, p2, p3,p4, ncol = 2)
+```
+
+
